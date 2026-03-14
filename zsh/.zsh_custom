@@ -1,0 +1,7 @@
+ZSH_UTILS_DIR="$HOME/.zsh-utils"
+
+export PATH="$ZSH_UTILS_DIR:$PATH"
+
+for file in "$ZSH_UTILS_DIR"/*.zsh(N); do
+  source "$file"
+done
