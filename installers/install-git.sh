@@ -1,18 +1,11 @@
 #!/usr/bin/env bash
 set -e
 
-DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 echo "Setting up Git..."
 
-# Install Git (macOS)
-if command -v brew >/dev/null; then
-if ! command -v git >/dev/null; then
-brew install git
-fi
-fi
-
-# Install Git (Ubuntu/Debian)
+# Install git if missing
 if command -v apt >/dev/null; then
 if ! command -v git >/dev/null; then
 sudo apt update
@@ -20,6 +13,18 @@ sudo apt install -y git
 fi
 fi
 
+# Link gitconfig
 ln -sf "$DOTFILES_DIR/git/.gitconfig" "$HOME/.gitconfig"
+
+echo "Checking SSH connectivity to GitHub..."
+
+if ssh -o StrictHostKeyChecking=no -T [git@github.com](mailto:git@github.com) 2>&1 | grep -q "successfully authenticated"; then
+echo "SSH to GitHub works. Enabling SSH URL rewrites..."
+
+git config --global url."[git@github.com](mailto:git@github.com):".insteadOf "https://github.com/"
+git config --global url."[git@gitlab.com](mailto:git@gitlab.com):".insteadOf "https://gitlab.com/"
+else
+echo "SSH not configured yet. Skipping Git URL rewrite."
+fi
 
 echo "Git configured."
