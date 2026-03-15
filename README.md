@@ -1,17 +1,16 @@
-# dotfiles
+# Dotfiles
 
-Personal development environment configuration shared across multiple machines.
+Personal workstation configuration.
 
-Includes configuration for:
+## Install
 
-- zsh / oh-my-zsh
-- powerlevel10k
-- vim
+git clone git@github.com:<user>/dotfiles.git
+cd dotfiles
+./install.sh
+
+## Installed configs
+
 - git
+- vim
 - ssh
-- developer tooling
-
-Designed for use across:
-
-- macOS
-- Ubuntu servers
+- zsh
