@@ -1,21 +1,21 @@
 [user]
-name = LuciKritZ
-email = [krishals.001@gmail.com](mailto:krishals.001@gmail.com)
-signingkey = D2928C32C25875A9
+  name = LuciKritZ
+  email = krishals.001@gmail.com
+  signingkey = D2928C32C25875A9
 
 [init]
-defaultBranch = main
+  defaultBranch = main
 
 [commit]
-gpgsign = true
+  gpgsign = true
 
 [gpg]
-program = gpg
-format = openpgp
+  program = gpg
+  format = openpgp
 
 [alias]
-lg = log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit --date=relative
-s = status -sb
-undo = reset --soft HEAD~1
-nah = !git reset --hard && git clean -df
-sync = !git checkout main && git pull --rebase && git fetch --prune
+  lg = log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit --date=relative
+  s = status -sb
+  undo = reset --soft HEAD~1
+  nah = !git reset --hard && git clean -df
+  sync = !git checkout main && git pull --rebase && git fetch --prune
