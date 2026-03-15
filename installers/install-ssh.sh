@@ -1,14 +1,20 @@
 #!/usr/bin/env bash
 set -e
 
-DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 echo "Setting up SSH..."
 
 mkdir -p "$HOME/.ssh"
 chmod 700 "$HOME/.ssh"
 
-ln -sf "$DOTFILES_DIR/ssh/config" "$HOME/.ssh/config"
-chmod 600 "$HOME/.ssh/config"
+# remove broken symlink if exists
+rm -f "$HOME/.ssh/config"
 
-echo "SSH config installed."
+# create symlink
+ln -s "$DOTFILES_DIR/ssh/config" "$HOME/.ssh/config"
+
+# correct permissions
+chmod 600 "$DOTFILES_DIR/ssh/config"
+
+echo "SSH configured."
