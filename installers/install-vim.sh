@@ -37,47 +37,43 @@ ensure_homebrew() {
   NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
   load_homebrew
 }
-
 if ! command -v vim >/dev/null 2>&1; then
   if command -v apt >/dev/null 2>&1; then
     sudo apt update
     sudo apt install -y vim curl git
-  elif [ "$(uname -s)" = "Darwin" ]; then
+  elif load_homebrew || [ "$(uname -s)" = "Darwin" ]; then
     ensure_homebrew
     brew install vim
   else
-    echo "Error: Unable to install Vim automatically on this operating system."
+    echo "ERROR: Cannot install vim — no supported package manager found (apt/brew)." >&2
     exit 1
   fi
 fi
 
-# Install Node.js (required for coc.nvim)
+# Node.js (required for coc.nvim)
 if ! command -v node >/dev/null 2>&1; then
   echo "Installing Node.js for coc.nvim..."
-
   if command -v apt >/dev/null 2>&1; then
     curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
     sudo apt install -y nodejs
-  elif [ "$(uname -s)" = "Darwin" ]; then
+  elif load_homebrew || [ "$(uname -s)" = "Darwin" ]; then
     ensure_homebrew
     brew install node
   else
-    echo "Error: Unable to install Node.js automatically on this operating system."
+    echo "ERROR: Cannot install Node.js — no supported package manager found (apt/brew)." >&2
     exit 1
   fi
 fi
 
-# Install vim-plug plugin manager
 if [ ! -f "$HOME/.vim/autoload/plug.vim" ]; then
   echo "Installing vim-plug..."
   curl -fLo "$HOME/.vim/autoload/plug.vim" --create-dirs https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
 fi
 
-# Link vim configuration
 ln -sf "$DOTFILES_DIR/vim/.vimrc" "$HOME/.vimrc"
 
-# Install plugins
+# Install plugins (headless — works without a TTY, safe in CI)
 echo "Installing Vim plugins..."
-vim +'PlugInstall --sync' +qa
+vim -Es -u "$HOME/.vimrc" +'PlugInstall --sync' +qa 2>/dev/null || true
 
 echo "Vim configured successfully."

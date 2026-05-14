@@ -2,10 +2,25 @@
 set -euo pipefail
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OS="$(uname -s)"
-OUTPUT_DIR="$DOTFILES_DIR/output/gpg"
+ENV_FILE="$DOTFILES_DIR/.env"
 
 echo "Setting up Git..."
+
+# ── Load .env ─────────────────────────────────────────────────
+if [ ! -f "$ENV_FILE" ]; then
+  echo "ERROR: .env not found. Copy .env.example → .env and fill in your values." >&2
+  exit 1
+fi
+
+set +u
+# shellcheck disable=SC1090
+source "$ENV_FILE"
+set -u
+
+if [ -z "${GIT_EMAIL:-}" ] || [ -z "${GIT_NAME:-}" ]; then
+  echo "ERROR: GIT_NAME and GIT_EMAIL must be set in .env." >&2
+  exit 1
+fi
 
 load_homebrew() {
   if command -v brew >/dev/null 2>&1; then
@@ -31,7 +46,7 @@ ensure_homebrew() {
     return 0
   fi
 
-  if [ "$OS" != "Darwin" ]; then
+  if [ "$(uname -s)" != "Darwin" ]; then
     return 1
   fi
 
@@ -40,202 +55,41 @@ ensure_homebrew() {
   load_homebrew
 }
 
-install_packages() {
+if ! command -v git >/dev/null; then
   if command -v apt >/dev/null 2>&1; then
     sudo apt update
-    sudo apt install -y "$@"
-  elif [ "$OS" = "Darwin" ]; then
+    sudo apt install -y git
+  elif load_homebrew || [ "$(uname -s)" = "Darwin" ]; then
     ensure_homebrew
-    brew install "$@"
+    brew install git
   else
-    echo "Error: Unable to install required packages automatically on this operating system."
+    echo "ERROR: Cannot install git — no supported package manager found (apt/brew)." >&2
     exit 1
   fi
-}
+fi
 
-ensure_line_in_file() {
-  local file_path="$1"
-  local line="$2"
+ln -sf "$DOTFILES_DIR/git/.gitconfig" "$HOME/.gitconfig"
 
-  touch "$file_path"
+# ── Write per-device identity to ~/.gitconfig.local ──────────
+#
+# ~/.gitconfig.local is included by dotfiles/git/.gitconfig.
+# Writing here avoids modifying the symlinked tracked file.
+LOCAL_CONFIG="$HOME/.gitconfig.local"
 
-  if ! grep -Fqx "$line" "$file_path"; then
-    printf '%s\n' "$line" >> "$file_path"
-  fi
-}
+git config --file "$LOCAL_CONFIG" user.name  "$GIT_NAME"
+git config --file "$LOCAL_CONFIG" user.email "$GIT_EMAIL"
 
-get_secret_key_fingerprint() {
-  local lookup="${1:-}"
+echo "Git identity set in ~/.gitconfig.local: $GIT_NAME <$GIT_EMAIL>"
 
-  if [ -z "$lookup" ]; then
-    return 0
-  fi
-
-  gpg --list-secret-keys --with-colons "$lookup" 2>/dev/null | awk -F: '/^fpr:/ { print $10; exit }' || true
-}
-
-ensure_git() {
-  if ! command -v git >/dev/null 2>&1; then
-    install_packages git
-  fi
-}
-
-ensure_gpg_tools() {
-  if command -v gpg >/dev/null 2>&1; then
-    if [ "$OS" = "Darwin" ] && ! command -v pinentry-mac >/dev/null 2>&1; then
-      install_packages pinentry-mac
-    fi
-    if [ "$OS" != "Darwin" ] && ! command -v pinentry >/dev/null 2>&1 && ! command -v pinentry-curses >/dev/null 2>&1; then
-      install_packages pinentry-curses
-    fi
-    return 0
-  fi
-
-  if command -v apt >/dev/null 2>&1; then
-    install_packages gnupg pinentry-curses
-  elif [ "$OS" = "Darwin" ]; then
-    install_packages gnupg pinentry-mac
-  else
-    echo "Error: Unable to install GPG automatically on this operating system."
-    exit 1
-  fi
-}
-
-configure_gpg_agent() {
-  mkdir -p "$HOME/.gnupg"
-  chmod 700 "$HOME/.gnupg"
-
-  if [ "$OS" = "Darwin" ]; then
-    local pinentry_path
-    pinentry_path="$(command -v pinentry-mac || true)"
-
-    if [ -n "$pinentry_path" ]; then
-      ensure_line_in_file "$HOME/.gnupg/gpg-agent.conf" "pinentry-program $pinentry_path"
-    fi
-  fi
-
-  export GPG_TTY="${GPG_TTY:-$(tty 2>/dev/null || true)}"
-  gpgconf --kill gpg-agent >/dev/null 2>&1 || true
-}
-
-export_signing_key_material() {
-  local signing_key="$1"
-  local export_dir public_key_file private_key_file instructions_file
-
-  export_dir="$OUTPUT_DIR/$signing_key"
-  public_key_file="$export_dir/public.asc"
-  private_key_file="$export_dir/private.asc"
-  instructions_file="$export_dir/instructions.txt"
-
-  mkdir -p "$export_dir"
-  chmod 700 "$OUTPUT_DIR" "$export_dir"
-
-  gpg --armor --export "$signing_key" > "$public_key_file"
-  gpg --armor --export-secret-keys "$signing_key" > "$private_key_file"
-
-  chmod 644 "$public_key_file"
-  chmod 600 "$private_key_file"
-
-  cat > "$instructions_file" <<EOF
-Signing key fingerprint: $signing_key
-
-Files in this folder:
-- public.asc: upload this public key to GitHub/GitLab signing keys
-- private.asc: import this only on trusted machines you control
-
-GitHub:
-1. Open https://github.com/settings/keys
-2. Choose "New GPG key"
-3. Paste the contents of public.asc
-
-GitLab:
-1. Open https://gitlab.com/-/profile/gpg_keys
-2. Paste the contents of public.asc
-
-Import on another trusted machine:
-gpg --import private.asc
-
-Verify the imported secret key:
-gpg --list-secret-keys --keyid-format=long
-
-Verify Git is using this signing key:
-git config --global user.signingkey
-
-Verify GPG signing locally:
-echo "test" | gpg --clearsign
-
-Verify a signed commit locally:
-git commit --allow-empty -S -m "test gpg signing"
-git log --show-signature -1
-
-Do not upload private.asc to GitHub, GitLab, or any public location.
-EOF
-
-  chmod 600 "$instructions_file"
-
-  echo "Exported GPG key materials to $export_dir"
-}
-
-ensure_signing_key() {
-  local git_name git_email configured_key signing_key user_id
-
-  git_name="$(git config --global user.name || true)"
-  git_email="$(git config --global user.email || true)"
-
-  if [ -z "$git_name" ] || [ -z "$git_email" ]; then
-    echo "Error: Git user.name and user.email must be configured before creating a GPG key."
-    exit 1
-  fi
-
-  configured_key="$(git config --global user.signingkey || true)"
-  signing_key="$(get_secret_key_fingerprint "$configured_key")"
-
-  if [ -z "$signing_key" ]; then
-    signing_key="$(get_secret_key_fingerprint "$git_email")"
-  fi
-
-  if [ -z "$signing_key" ]; then
-    if [ ! -t 0 ]; then
-      echo "Error: No GPG secret key found for $git_email and interactive key generation is unavailable."
-      exit 1
-    fi
-
-    user_id="$git_name <$git_email>"
-    echo "Generating a new GPG key for $user_id..."
-    gpg --quick-generate-key "$user_id" default default 1y
-    signing_key="$(get_secret_key_fingerprint "$git_email")"
-  fi
-
-  if [ -z "$signing_key" ]; then
-    echo "Error: Unable to determine a GPG signing key."
-    exit 1
-  fi
-
-  git config --global gpg.program "$(command -v gpg)"
-  git config --global gpg.format openpgp
-  git config --global commit.gpgsign true
-  git config --global user.signingkey "$signing_key"
-
-  export_signing_key_material "$signing_key"
-}
-
-ensure_git
-ensure_gpg_tools
-configure_gpg_agent
-
-rm -f "$HOME/.gitconfig"
-cp "$DOTFILES_DIR/git/.gitconfig" "$HOME/.gitconfig"
-
+# ── SSH rewrite rules → ~/.gitconfig.local ───────────────────
 echo "Cleaning malformed Git URL rewrites..."
 
-git config --global --unset-all url.git@github.com:.insteadOf 2>/dev/null || true
-git config --global --unset-all url.git@gitlab.com:.insteadOf 2>/dev/null || true
+git config --file "$LOCAL_CONFIG" --unset-all url."git@github.com:LuciKritZ/".insteadOf 2>/dev/null || true
+git config --file "$LOCAL_CONFIG" --unset-all url."git@gitlab.com:krishals.001/".insteadOf 2>/dev/null || true
 
 echo "Applying SSH rewrite rules..."
 
-git config --global url."git@github.com:".insteadOf https://github.com/
-git config --global url."git@gitlab.com:".insteadOf https://gitlab.com/
-
-ensure_signing_key
+git config --file "$LOCAL_CONFIG" url."git@github.com:LuciKritZ/".insteadOf "https://github.com/LuciKritZ/"
+git config --file "$LOCAL_CONFIG" url."git@gitlab.com:krishals.001/".insteadOf "https://gitlab.com/krishals.001/"
 
 echo "Git configured."
