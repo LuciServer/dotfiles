@@ -2,28 +2,60 @@
 set -e
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ENV_FILE="$DOTFILES_DIR/.env"
 
 echo "Setting up Git..."
 
-# Install git if missing
-if command -v apt >/dev/null; then
-  if ! command -v git >/dev/null; then
+# ── Load .env ─────────────────────────────────────────────────
+if [ ! -f "$ENV_FILE" ]; then
+  echo "ERROR: .env not found. Copy .env.example → .env and fill in your values." >&2
+  exit 1
+fi
+
+set +u
+# shellcheck disable=SC1090
+source "$ENV_FILE"
+set -u
+
+if [ -z "${GIT_EMAIL:-}" ] || [ -z "${GIT_NAME:-}" ]; then
+  echo "ERROR: GIT_NAME and GIT_EMAIL must be set in .env." >&2
+  exit 1
+fi
+
+if ! command -v git >/dev/null; then
+  if command -v apt >/dev/null 2>&1; then
     sudo apt update
     sudo apt install -y git
+  elif command -v brew >/dev/null 2>&1; then
+    brew install git
+  else
+    echo "ERROR: Cannot install git — no supported package manager found (apt/brew)." >&2
+    exit 1
   fi
 fi
 
-# Link gitconfig
 ln -sf "$DOTFILES_DIR/git/.gitconfig" "$HOME/.gitconfig"
 
+# ── Write per-device identity to ~/.gitconfig.local ──────────
+#
+# ~/.gitconfig.local is included by dotfiles/git/.gitconfig.
+# Writing here avoids modifying the symlinked tracked file.
+LOCAL_CONFIG="$HOME/.gitconfig.local"
+
+git config --file "$LOCAL_CONFIG" user.name  "$GIT_NAME"
+git config --file "$LOCAL_CONFIG" user.email "$GIT_EMAIL"
+
+echo "Git identity set in ~/.gitconfig.local: $GIT_NAME <$GIT_EMAIL>"
+
+# ── SSH rewrite rules → ~/.gitconfig.local ───────────────────
 echo "Cleaning malformed Git URL rewrites..."
 
-git config --global --unset-all url.git@github.com:.insteadOf 2>/dev/null || true
-git config --global --unset-all url.git@gitlab.com:.insteadOf 2>/dev/null || true
+git config --file "$LOCAL_CONFIG" --unset-all url."git@github.com:LuciKritZ/".insteadOf 2>/dev/null || true
+git config --file "$LOCAL_CONFIG" --unset-all url."git@gitlab.com:krishals.001/".insteadOf 2>/dev/null || true
 
 echo "Applying SSH rewrite rules..."
 
-git config --global url."git@github.com:".insteadOf https://github.com/
-git config --global url."git@gitlab.com:".insteadOf https://gitlab.com/
+git config --file "$LOCAL_CONFIG" url."git@github.com:LuciKritZ/".insteadOf "https://github.com/LuciKritZ/"
+git config --file "$LOCAL_CONFIG" url."git@gitlab.com:krishals.001/".insteadOf "https://gitlab.com/krishals.001/"
 
 echo "Git configured."

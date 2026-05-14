@@ -1,17 +1,10 @@
-[user]
-  name = LuciKritZ
-  email = krishals.001@gmail.com
-  signingkey = D2928C32C25875A9
+# Per-device values (user.name, user.email, user.signingkey, commit.gpgsign)
+# are written to ~/.gitconfig.local by the installers — never here.
+[include]
+  path = ~/.gitconfig.local
 
 [init]
   defaultBranch = main
-
-[commit]
-  gpgsign = true
-
-[gpg]
-  program = gpg
-  format = openpgp
 
 [alias]
   lg = log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit --date=relative
