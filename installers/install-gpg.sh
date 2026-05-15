@@ -89,12 +89,13 @@ SIGNING_KEY=""
 if [ -n "${GPG_SOURCE_HOST:-}" ]; then
   echo "GPG_SOURCE_HOST is set. Fetching key from $GPG_SOURCE_HOST..."
 
-  # We use a temporary file to capture the key data while allowing 
-  # interactive passphrase prompts to be visible on the terminal.
-  TMP_KEY="$(mktemp)"
-  ssh -t "$GPG_SOURCE_HOST" "export GPG_TTY=\$(tty); gpg --armor --export-secret-keys '$GIT_EMAIL'" > "$TMP_KEY"
-  FETCHED_KEY="$(tr -d '\r' < "$TMP_KEY")"
-  rm -f "$TMP_KEY"
+  # We use a temporary file ON THE REMOTE HOST to capture the key data.
+  # This allows 'ssh -t' to keep the terminal open for the GPG passphrase prompt
+  # while preventing the key data from being mixed with terminal artifacts.
+  REMOTE_TMP=".gpg_key_fetch.tmp"
+  if ssh -t "$GPG_SOURCE_HOST" "export GPG_TTY=\$(tty); gpg --armor --export-secret-keys '$GIT_EMAIL' > $REMOTE_TMP"; then
+    FETCHED_KEY="$(ssh "$GPG_SOURCE_HOST" "cat $REMOTE_TMP && rm $REMOTE_TMP" | tr -d '\r' || true)"
+  fi
 
   if [ -z "$FETCHED_KEY" ]; then
     echo "" >&2
