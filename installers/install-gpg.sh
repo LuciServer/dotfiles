@@ -108,10 +108,19 @@ if [ -n "${GPG_SOURCE_HOST:-}" ]; then
     exit 1
   fi
 
+  # Clean up any existing keys for this email to ensure a clean import
+  echo "Cleaning up existing local GPG keys for $GIT_EMAIL..."
+  gpg --list-secret-keys --with-colons "$GIT_EMAIL" 2>/dev/null | grep '^sec' | cut -d: -f5 | xargs gpg --batch --yes --delete-secret-and-public-keys 2>/dev/null || true
+
   echo "$FETCHED_KEY" | gpg --import 2>/dev/null
   echo "✅ Key imported from $GPG_SOURCE_HOST."
 
-  SIGNING_KEY="$(_get_local_key)"
+  # Fetch the specific Key ID from the source host so we pick the right one locally
+  SIGNING_KEY="$(ssh "$GPG_SOURCE_HOST" "gpg --list-secret-keys --keyid-format LONG '$GIT_EMAIL' 2>/dev/null | grep '^sec' | awk '{print \$2}' | cut -d'/' -f2 | head -n1" || true)"
+
+  if [ -z "$SIGNING_KEY" ]; then
+    SIGNING_KEY="$(_get_local_key)"
+  fi
 
   if [ -z "$SIGNING_KEY" ]; then
     echo "ERROR: Key was imported but could not be found locally. Import may have failed." >&2
