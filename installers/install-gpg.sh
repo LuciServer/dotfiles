@@ -89,22 +89,28 @@ SIGNING_KEY=""
 if [ -n "${GPG_SOURCE_HOST:-}" ]; then
   echo "GPG_SOURCE_HOST is set. Fetching key from $GPG_SOURCE_HOST..."
 
-  # We use a temporary file ON THE REMOTE HOST to capture the key data.
-  # This allows 'ssh -t' to keep the terminal open for the GPG passphrase prompt
-  # while preventing the key data from being mixed with terminal artifacts.
-  REMOTE_TMP=".gpg_key_fetch.tmp"
-  if ssh -t "$GPG_SOURCE_HOST" "export GPG_TTY=\$(tty); gpg --armor --export-secret-keys '$GIT_EMAIL' > $REMOTE_TMP"; then
-    FETCHED_KEY="$(ssh "$GPG_SOURCE_HOST" "cat $REMOTE_TMP && rm $REMOTE_TMP" | tr -d '\r' || true)"
+  # We bundle the Key ID and the exported key together on the remote host
+  # to reduce the number of SSH calls (and password prompts).
+  REMOTE_TMP=".gpg_bundle_fetch.tmp"
+  REMOTE_CMD="export GPG_TTY=\$(tty); 
+    GPG_ID=\$(gpg --list-secret-keys --keyid-format LONG '$GIT_EMAIL' 2>/dev/null | grep '^sec' | awk '{print \$2}' | cut -d'/' -f2 | head -n1);
+    echo \"\$GPG_ID\" > $REMOTE_TMP;
+    gpg --armor --export-secret-keys '$GIT_EMAIL' >> $REMOTE_TMP"
+
+  if ssh -t "$GPG_SOURCE_HOST" "$REMOTE_CMD"; then
+    BUNDLE="$(ssh "$GPG_SOURCE_HOST" "cat $REMOTE_TMP && rm $REMOTE_TMP" | tr -d '\r' || true)"
+    SIGNING_KEY="$(echo "$BUNDLE" | head -n 1 | xargs)" # xargs trims whitespace
+    FETCHED_KEY="$(echo "$BUNDLE" | tail -n +2)"
   fi
 
-  if [ -z "$FETCHED_KEY" ]; then
+  if [ -z "$SIGNING_KEY" ] || [ -z "$FETCHED_KEY" ]; then
     echo "" >&2
-    echo "ERROR: Failed to fetch GPG key from $GPG_SOURCE_HOST." >&2
+    echo "ERROR: Failed to fetch GPG key or ID from $GPG_SOURCE_HOST." >&2
     echo "" >&2
     echo "Possible causes:" >&2
     echo "  - SSH connection failed (check GPG_SOURCE_HOST in .env)" >&2
     echo "  - No key for $GIT_EMAIL exists on the source host" >&2
-    echo "  - gpg is not installed on the source host" >&2
+    echo "  - gpg passphrase was incorrect" >&2
     exit 1
   fi
 
@@ -115,17 +121,6 @@ if [ -n "${GPG_SOURCE_HOST:-}" ]; then
   echo "$FETCHED_KEY" | gpg --import 2>/dev/null
   echo "✅ Key imported from $GPG_SOURCE_HOST."
 
-  # Fetch the specific Key ID from the source host so we pick the right one locally
-  SIGNING_KEY="$(ssh "$GPG_SOURCE_HOST" "gpg --list-secret-keys --keyid-format LONG '$GIT_EMAIL' 2>/dev/null | grep '^sec' | awk '{print \$2}' | cut -d'/' -f2 | head -n1" || true)"
-
-  if [ -z "$SIGNING_KEY" ]; then
-    SIGNING_KEY="$(_get_local_key)"
-  fi
-
-  if [ -z "$SIGNING_KEY" ]; then
-    echo "ERROR: Key was imported but could not be found locally. Import may have failed." >&2
-    exit 1
-  fi
 
 # ── Case B: No source — check local, then prompt user ─────────
 else
