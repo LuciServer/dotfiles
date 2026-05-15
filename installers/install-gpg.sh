@@ -37,6 +37,12 @@ if [ -z "${GIT_NAME:-}" ]; then
   exit 1
 fi
 
+# ── 3. Check for opt-out ──────────────────────────────────────
+if [ "${SKIP_GPG:-}" = "true" ]; then
+  echo "SKIP_GPG is set to true. Skipping GPG setup."
+  exit 0
+fi
+
 GPG_KEY_TYPE="ed25519"
 GPG_EXPIRE="2y"
 

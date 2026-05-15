@@ -98,4 +98,12 @@ else
   echo "  No SSH keys found. Skipping rewrite rules (clones will use HTTPS)."
 fi
 
+# ── GPG Signing Configuration ────────────────────────────────
+# If GPG is skipped or no key is found, ensure signing is disabled
+# so git doesn't error out on every commit.
+if [ "${SKIP_GPG:-}" = "true" ]; then
+  git config --file "$LOCAL_CONFIG" commit.gpgsign false
+  echo "GPG signing explicitly disabled in ~/.gitconfig.local"
+fi
+
 echo "Git configured."

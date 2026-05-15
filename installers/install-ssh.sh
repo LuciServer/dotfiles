@@ -45,3 +45,38 @@ else
 fi
 
 echo "SSH configured."
+
+# ── GitHub SSH Key Generation ─────────────────────────────────
+GITHUB_KEY="$HOME/.ssh/github_key"
+
+if [ ! -f "$GITHUB_KEY" ]; then
+  echo ""
+  echo "No GitHub SSH key found at $GITHUB_KEY"
+  echo "Generating a new Ed25519 key for GitHub..."
+  
+  # Get email from .env if available, otherwise use default
+  DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+  ENV_FILE="$DOTFILES_DIR/.env"
+  SSH_EMAIL="lucikritz@users.noreply.github.com"
+  if [ -f "$ENV_FILE" ]; then
+    # shellcheck disable=SC1091
+    source "$ENV_FILE"
+    SSH_EMAIL="${GIT_EMAIL:-$SSH_EMAIL}"
+  fi
+
+  ssh-keygen -t ed25519 -C "$SSH_EMAIL" -f "$GITHUB_KEY" -N ""
+  chmod 600 "$GITHUB_KEY"
+  chmod 644 "${GITHUB_KEY}.pub"
+  
+  echo ""
+  echo "✅ New SSH key generated: $GITHUB_KEY"
+  echo "─────────────────────────────────────────────────────────────────"
+  echo "ACTION REQUIRED: Add this public key to your GitHub account:"
+  echo "https://github.com/settings/keys"
+  echo "─────────────────────────────────────────────────────────────────"
+  cat "${GITHUB_KEY}.pub"
+  echo "─────────────────────────────────────────────────────────────────"
+  echo ""
+else
+  echo "Found existing GitHub SSH key at $GITHUB_KEY"
+fi
