@@ -118,8 +118,16 @@ if [ -n "${GPG_SOURCE_HOST:-}" ]; then
   echo "Cleaning up existing local GPG keys for $GIT_EMAIL..."
   gpg --list-secret-keys --with-colons "$GIT_EMAIL" 2>/dev/null | grep '^sec' | cut -d: -f5 | xargs gpg --batch --yes --delete-secret-and-public-keys 2>/dev/null || true
 
-  echo "$FETCHED_KEY" | gpg --import 2>/dev/null
-  echo "✅ Key imported from $GPG_SOURCE_HOST."
+  # Strip any carriage returns or hidden ANSI/TTY artifacts from the key data
+  CLEAN_KEY="$(echo "$FETCHED_KEY" | tr -d '\r' | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g')"
+
+  echo "Importing key into local keyring..."
+  if echo "$CLEAN_KEY" | gpg --import; then
+    echo "✅ Key imported from $GPG_SOURCE_HOST."
+  else
+    echo "ERROR: GPG import failed. The fetched key data might be malformed." >&2
+    exit 1
+  fi
 
 
 # ── Case B: No source — check local, then prompt user ─────────
