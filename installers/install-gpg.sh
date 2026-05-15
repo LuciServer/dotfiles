@@ -89,10 +89,13 @@ SIGNING_KEY=""
 if [ -n "${GPG_SOURCE_HOST:-}" ]; then
   echo "GPG_SOURCE_HOST is set. Fetching key from $GPG_SOURCE_HOST..."
 
-  # Use -t to allocate a TTY for the GPG passphrase prompt on the remote host
-  # We also use tr -d '\r' to clean up TTY-induced carriage returns
-  FETCHED_KEY="$(ssh -t "$GPG_SOURCE_HOST" \
-    "export GPG_TTY=\$(tty); gpg --armor --export-secret-keys '$GIT_EMAIL'" 2>/dev/null | tr -d '\r' || true)"
+  # We use a temporary file ON THE REMOTE HOST to capture the key data.
+  # This allows 'ssh -t' to keep the terminal open for the GPG passphrase prompt
+  # while preventing the key data from being mixed with terminal artifacts.
+  REMOTE_TMP=".gpg_key_fetch.tmp"
+  if ssh -t "$GPG_SOURCE_HOST" "export GPG_TTY=\$(tty); gpg --armor --export-secret-keys '$GIT_EMAIL' > $REMOTE_TMP"; then
+    FETCHED_KEY="$(ssh "$GPG_SOURCE_HOST" "cat $REMOTE_TMP && rm $REMOTE_TMP" | tr -d '\r' || true)"
+  fi
 
   if [ -z "$FETCHED_KEY" ]; then
     echo "" >&2
@@ -105,10 +108,19 @@ if [ -n "${GPG_SOURCE_HOST:-}" ]; then
     exit 1
   fi
 
+  # Clean up any existing keys for this email to ensure a clean import
+  echo "Cleaning up existing local GPG keys for $GIT_EMAIL..."
+  gpg --list-secret-keys --with-colons "$GIT_EMAIL" 2>/dev/null | grep '^sec' | cut -d: -f5 | xargs gpg --batch --yes --delete-secret-and-public-keys 2>/dev/null || true
+
   echo "$FETCHED_KEY" | gpg --import 2>/dev/null
   echo "✅ Key imported from $GPG_SOURCE_HOST."
 
-  SIGNING_KEY="$(_get_local_key)"
+  # Fetch the specific Key ID from the source host so we pick the right one locally
+  SIGNING_KEY="$(ssh "$GPG_SOURCE_HOST" "gpg --list-secret-keys --keyid-format LONG '$GIT_EMAIL' 2>/dev/null | grep '^sec' | awk '{print \$2}' | cut -d'/' -f2 | head -n1" || true)"
+
+  if [ -z "$SIGNING_KEY" ]; then
+    SIGNING_KEY="$(_get_local_key)"
+  fi
 
   if [ -z "$SIGNING_KEY" ]; then
     echo "ERROR: Key was imported but could not be found locally. Import may have failed." >&2
