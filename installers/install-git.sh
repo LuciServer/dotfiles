@@ -82,14 +82,20 @@ git config --file "$LOCAL_CONFIG" user.email "$GIT_EMAIL"
 echo "Git identity set in ~/.gitconfig.local: $GIT_NAME <$GIT_EMAIL>"
 
 # ── SSH rewrite rules → ~/.gitconfig.local ───────────────────
-echo "Cleaning malformed Git URL rewrites..."
+# Only apply if the user has an SSH key configured, to avoid chicken-and-egg
+# problems during initial setup (cloning Oh My Zsh, etc.)
+echo "Checking for SSH keys to decide on URL rewrite rules..."
 
 git config --file "$LOCAL_CONFIG" --unset-all url."git@github.com:LuciKritZ/".insteadOf 2>/dev/null || true
 git config --file "$LOCAL_CONFIG" --unset-all url."git@gitlab.com:krishals.001/".insteadOf 2>/dev/null || true
 
-echo "Applying SSH rewrite rules..."
-
-git config --file "$LOCAL_CONFIG" url."git@github.com:LuciKritZ/".insteadOf "https://github.com/LuciKritZ/"
-git config --file "$LOCAL_CONFIG" url."git@gitlab.com:krishals.001/".insteadOf "https://gitlab.com/krishals.001/"
+# Check for any common GitHub/GitLab SSH keys
+if [ -f "$HOME/.ssh/github_key" ] || [ -f "$HOME/.ssh/id_ed25519" ] || [ -f "$HOME/.ssh/id_rsa" ]; then
+  echo "  Applying GitHub/GitLab SSH rewrite rules..."
+  git config --file "$LOCAL_CONFIG" url."git@github.com:LuciKritZ/".insteadOf "https://github.com/LuciKritZ/"
+  git config --file "$LOCAL_CONFIG" url."git@gitlab.com:krishals.001/".insteadOf "https://gitlab.com/krishals.001/"
+else
+  echo "  No SSH keys found. Skipping rewrite rules (clones will use HTTPS)."
+fi
 
 echo "Git configured."

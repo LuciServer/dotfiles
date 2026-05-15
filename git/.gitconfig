@@ -14,7 +14,3 @@
   sync = !git checkout main && git pull --rebase && git fetch --prune
 [safe]
 	directory = *
-[url "git@github.com:"]
-	insteadOf = https://github.com/
-[url "git@gitlab.com:"]
-	insteadOf = https://gitlab.com/
