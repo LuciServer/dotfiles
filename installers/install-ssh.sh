@@ -22,8 +22,21 @@ chmod 700 "$HOME/.ssh"
 
 mkdir -p "$HOME/.ssh/config.d"
 
-ln -sf "$DOTFILES_DIR/ssh/config" "$HOME/.ssh/config.d/dotfiles.conf"
-chmod 600 "$DOTFILES_DIR/ssh/config"
+# ── Safe copy helper ──────────────────────────────────────────
+_safe_copy() {
+  local src="$1" dest="$2"
+  if [ -L "$dest" ]; then
+    rm "$dest"
+  elif [ -f "$dest" ]; then
+    BACKUP="${dest}.bak.$(date +%Y%m%d%H%M%S)"
+    echo "  Backing up existing $(basename "$dest") → $BACKUP"
+    mv "$dest" "$BACKUP"
+  fi
+  cp "$src" "$dest"
+  chmod 600 "$dest"
+}
+
+_safe_copy "$DOTFILES_DIR/ssh/config" "$HOME/.ssh/config.d/dotfiles.conf"
 
 touch "$HOME/.ssh/config"
 chmod 600 "$HOME/.ssh/config"

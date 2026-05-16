@@ -68,7 +68,20 @@ if ! command -v git >/dev/null; then
   fi
 fi
 
-ln -sf "$DOTFILES_DIR/git/.gitconfig" "$HOME/.gitconfig"
+# ── Safe copy helper ──────────────────────────────────────────
+_safe_copy() {
+  local src="$1" dest="$2"
+  if [ -L "$dest" ]; then
+    rm "$dest"
+  elif [ -f "$dest" ]; then
+    BACKUP="${dest}.bak.$(date +%Y%m%d%H%M%S)"
+    echo "  Backing up existing $(basename "$dest") → $BACKUP"
+    mv "$dest" "$BACKUP"
+  fi
+  cp "$src" "$dest"
+}
+
+_safe_copy "$DOTFILES_DIR/git/.gitconfig" "$HOME/.gitconfig"
 
 # ── Write per-device identity to ~/.gitconfig.local ──────────
 #

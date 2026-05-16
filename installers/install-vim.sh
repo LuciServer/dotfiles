@@ -70,7 +70,20 @@ if [ ! -f "$HOME/.vim/autoload/plug.vim" ]; then
   curl -fLo "$HOME/.vim/autoload/plug.vim" --create-dirs https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
 fi
 
-ln -sf "$DOTFILES_DIR/vim/.vimrc" "$HOME/.vimrc"
+# ── Safe copy helper ──────────────────────────────────────────
+_safe_copy() {
+  local src="$1" dest="$2"
+  if [ -L "$dest" ]; then
+    rm "$dest"
+  elif [ -f "$dest" ]; then
+    BACKUP="${dest}.bak.$(date +%Y%m%d%H%M%S)"
+    echo "  Backing up existing $(basename "$dest") → $BACKUP"
+    mv "$dest" "$BACKUP"
+  fi
+  cp "$src" "$dest"
+}
+
+_safe_copy "$DOTFILES_DIR/vim/.vimrc" "$HOME/.vimrc"
 
 # Install plugins (headless — works without a TTY, safe in CI)
 echo "Installing Vim plugins..."
