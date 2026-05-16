@@ -68,7 +68,20 @@ if ! command -v git >/dev/null; then
   fi
 fi
 
-ln -sf "$DOTFILES_DIR/git/.gitconfig" "$HOME/.gitconfig"
+# ── Safe copy helper ──────────────────────────────────────────
+_safe_copy() {
+  local src="$1" dest="$2"
+  if [ -L "$dest" ]; then
+    rm "$dest"
+  elif [ -f "$dest" ]; then
+    BACKUP="${dest}.bak.$(date +%Y%m%d%H%M%S)"
+    echo "  Backing up existing $(basename "$dest") → $BACKUP"
+    mv "$dest" "$BACKUP"
+  fi
+  cp "$src" "$dest"
+}
+
+_safe_copy "$DOTFILES_DIR/git/.gitconfig" "$HOME/.gitconfig"
 
 # ── Write per-device identity to ~/.gitconfig.local ──────────
 #
@@ -82,14 +95,28 @@ git config --file "$LOCAL_CONFIG" user.email "$GIT_EMAIL"
 echo "Git identity set in ~/.gitconfig.local: $GIT_NAME <$GIT_EMAIL>"
 
 # ── SSH rewrite rules → ~/.gitconfig.local ───────────────────
-echo "Cleaning malformed Git URL rewrites..."
+# Only apply if the user has an SSH key configured, to avoid chicken-and-egg
+# problems during initial setup (cloning Oh My Zsh, etc.)
+echo "Checking for SSH keys to decide on URL rewrite rules..."
 
 git config --file "$LOCAL_CONFIG" --unset-all url."git@github.com:LuciKritZ/".insteadOf 2>/dev/null || true
 git config --file "$LOCAL_CONFIG" --unset-all url."git@gitlab.com:krishals.001/".insteadOf 2>/dev/null || true
 
-echo "Applying SSH rewrite rules..."
+# Check for any common GitHub/GitLab SSH keys
+if [ -f "$HOME/.ssh/github_key" ] || [ -f "$HOME/.ssh/id_ed25519" ] || [ -f "$HOME/.ssh/id_rsa" ]; then
+  echo "  Applying GitHub/GitLab SSH rewrite rules..."
+  git config --file "$LOCAL_CONFIG" url."git@github.com:LuciKritZ/".insteadOf "https://github.com/LuciKritZ/"
+  git config --file "$LOCAL_CONFIG" url."git@gitlab.com:krishals.001/".insteadOf "https://gitlab.com/krishals.001/"
+else
+  echo "  No SSH keys found. Skipping rewrite rules (clones will use HTTPS)."
+fi
 
-git config --file "$LOCAL_CONFIG" url."git@github.com:LuciKritZ/".insteadOf "https://github.com/LuciKritZ/"
-git config --file "$LOCAL_CONFIG" url."git@gitlab.com:krishals.001/".insteadOf "https://gitlab.com/krishals.001/"
+# ── GPG Signing Configuration ────────────────────────────────
+# If GPG is skipped or no key is found, ensure signing is disabled
+# so git doesn't error out on every commit.
+if [ "${SKIP_GPG:-}" = "true" ]; then
+  git config --file "$LOCAL_CONFIG" commit.gpgsign false
+  echo "GPG signing explicitly disabled in ~/.gitconfig.local"
+fi
 
 echo "Git configured."

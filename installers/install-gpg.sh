@@ -9,6 +9,9 @@ echo "Setting up GPG signing"
 echo "Host: $(hostname)"
 echo "────────────────────────────────────────"
 
+# Ensure GPG knows which TTY to use for passphrase prompts
+export GPG_TTY=$(tty 2>/dev/null || echo "")
+
 # ── 1. Load .env ──────────────────────────────────────────────
 if [ ! -f "$ENV_FILE" ]; then
   echo "ERROR: .env not found." >&2
@@ -32,6 +35,12 @@ fi
 if [ -z "${GIT_NAME:-}" ]; then
   echo "ERROR: GIT_NAME is not set in .env." >&2
   exit 1
+fi
+
+# ── 3. Check for opt-out ──────────────────────────────────────
+if [ "${SKIP_GPG:-}" = "true" ]; then
+  echo "SKIP_GPG is set to true. Skipping GPG setup."
+  exit 0
 fi
 
 GPG_KEY_TYPE="ed25519"
@@ -118,8 +127,20 @@ if [ -n "${GPG_SOURCE_HOST:-}" ]; then
   echo "Cleaning up existing local GPG keys for $GIT_EMAIL..."
   gpg --list-secret-keys --with-colons "$GIT_EMAIL" 2>/dev/null | grep '^sec' | cut -d: -f5 | xargs gpg --batch --yes --delete-secret-and-public-keys 2>/dev/null || true
 
-  echo "$FETCHED_KEY" | gpg --import 2>/dev/null
-  echo "✅ Key imported from $GPG_SOURCE_HOST."
+  # Strip any carriage returns or hidden ANSI/TTY artifacts from the key data
+  # Use a local temporary file for import to avoid stdin/TTY conflicts
+  LOCAL_TMP_KEY=".gpg_import_$(date +%s).tmp"
+  echo "$FETCHED_KEY" | tr -d '\r' | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' > "$LOCAL_TMP_KEY"
+
+  echo "Importing key into local keyring..."
+  if gpg --import "$LOCAL_TMP_KEY"; then
+    echo "✅ Key imported from $GPG_SOURCE_HOST."
+    rm -f "$LOCAL_TMP_KEY"
+  else
+    echo "ERROR: GPG import failed. The fetched key data might be malformed." >&2
+    rm -f "$LOCAL_TMP_KEY"
+    exit 1
+  fi
 
 
 # ── Case B: No source — check local, then prompt user ─────────

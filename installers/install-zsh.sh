@@ -115,10 +115,16 @@ if [ -f "$DOTFILES_DIR/zsh/.zsh_custom" ]; then
   _safe_copy "$DOTFILES_DIR/zsh/.zsh_custom" "$USER_HOME/.zsh_custom"
 fi
 
-# zsh-utils: symlink the whole directory so changes propagate without re-running
+# zsh-utils: copy the whole directory
 if [ -d "$DOTFILES_DIR/zsh-utils" ]; then
-  rm -rf "$USER_HOME/.zsh-utils"
-  ln -sf "$DOTFILES_DIR/zsh-utils" "$USER_HOME/.zsh-utils"
+  if [ -L "$USER_HOME/.zsh-utils" ]; then
+    rm "$USER_HOME/.zsh-utils"
+  elif [ -d "$USER_HOME/.zsh-utils" ]; then
+    BACKUP="${USER_HOME}/.zsh-utils.bak.$(date +%Y%m%d%H%M%S)"
+    echo "  Backing up existing .zsh-utils → $BACKUP"
+    mv "$USER_HOME/.zsh-utils" "$BACKUP"
+  fi
+  cp -r "$DOTFILES_DIR/zsh-utils" "$USER_HOME/.zsh-utils"
 fi
 
 # Ensure ~/.zshrc.local exists as a machine-specific escape hatch.
