@@ -1,5 +1,5 @@
 gpgfix() {
-  export GPG_TTY=$(tty)
+  tty -s && export GPG_TTY=$(tty)
   gpgconf --launch gpg-agent
   echo "GPG TTY refreshed."
 }
