@@ -22,7 +22,7 @@ ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=#939393,bold,underline"
 
 export NVM_DIR="$HOME/.nvm"
 export OLLAMA_HOST="http://localhost:11434"
-export GPG_TTY=$(tty)
+tty -s && export GPG_TTY=$(tty)
 
 export PATH="$HOME/.console-ninja/.bin:$PATH"
 

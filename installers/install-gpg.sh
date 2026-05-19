@@ -10,7 +10,7 @@ echo "Host: $(hostname)"
 echo "────────────────────────────────────────"
 
 # Ensure GPG knows which TTY to use for passphrase prompts
-export GPG_TTY=$(tty 2>/dev/null || echo "")
+tty -s && export GPG_TTY=$(tty)
 
 # ── 1. Load .env ──────────────────────────────────────────────
 if [ ! -f "$ENV_FILE" ]; then
@@ -209,9 +209,8 @@ echo ""
 echo "Git configured to sign commits with key: $SIGNING_KEY"
 
 # ── 6. Start gpg-agent ────────────────────────────────────────
-GPG_TTY_VAL="$(tty 2>/dev/null || echo "")"
-if [ -n "$GPG_TTY_VAL" ]; then
-  export GPG_TTY="$GPG_TTY_VAL"
+if tty -s; then
+  export GPG_TTY=$(tty)
   gpgconf --launch gpg-agent
 fi
 
