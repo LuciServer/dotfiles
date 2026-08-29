@@ -24,7 +24,7 @@ export NVM_DIR="$HOME/.nvm"
 export OLLAMA_HOST="http://localhost:11434"
 tty -s && export GPG_TTY=$(tty)
 
-export PATH="$HOME/.console-ninja/.bin:$PATH"
+export PATH="$HOME/.console-ninja/.bin:$HOME/.local/bin:$PATH"
 
 [ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
 [ -s "$NVM_DIR/bash_completion" ] && source "$NVM_DIR/bash_completion"
@@ -40,6 +40,15 @@ alias restart_all_docker_containers='docker restart $(docker ps -q)'
 
 alias history-off='unsetopt INC_APPEND_HISTORY SHARE_HISTORY; export HISTFILE='
 alias history-on='export HISTFILE="$HOME/.zsh_history"; setopt INC_APPEND_HISTORY SHARE_HISTORY'
+
+# Fuzzy search
+export PATH="$HOME/.fzf/bin:$PATH"
+if command -v fzf &> /dev/null; then
+  source <(fzf --zsh)
+fi
+
+# clear the entire terminal
+alias clear='clear && printf "\e[3J"'
 
 # Machine-specific overrides (never overwritten by the installer)
 [ -f "$HOME/.zshrc.local" ] && source "$HOME/.zshrc.local"
