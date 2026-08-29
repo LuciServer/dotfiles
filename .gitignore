@@ -1,3 +1,5 @@
 /.docs
 .env
 /output
+
+.DS_Store

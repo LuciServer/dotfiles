@@ -4,7 +4,7 @@ Personal workstation configuration.
 
 ## Install
 
-git clone git@github.com:<user>/dotfiles.git
+git clone git@github.com:LuciServer/dotfiles.git
 cd dotfiles
 ./install.sh
 

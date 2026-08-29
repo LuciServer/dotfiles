@@ -10,6 +10,7 @@ bash "$DOTFILES_DIR/installers/install-gpg.sh"
 bash "$DOTFILES_DIR/installers/install-git.sh"
 bash "$DOTFILES_DIR/installers/install-vim.sh"
 bash "$DOTFILES_DIR/installers/install-zsh.sh"
+bash "$DOTFILES_DIR/installers/install-fzf.sh"
 
 latest_gpg_instructions="$(ls -t "$DOTFILES_DIR"/output/gpg/*/instructions.txt 2>/dev/null | head -n 1 || true)"
 
